@@ -1,40 +1,74 @@
-
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import time
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+
+def create_driver():
+    options = Options()
+    options.add_argument("--start-maximized")
+    options.add_argument("--disable-gpu")
+    return webdriver.Chrome(options=options)
+
 
 def test_windows():
-    driver = webdriver.Chrome()
-    driver.get("https://the-internet.herokuapp.com/windows")
+    driver = create_driver()
+    wait = WebDriverWait(driver, 10)
 
-    main = driver.current_window_handle
+    try:
+        driver.get("https://the-internet.herokuapp.com/windows")
 
-    driver.find_element(By.LINK_TEXT, "Click Here").click()
-    time.sleep(2)
+        main_window = driver.current_window_handle
 
-    for h in driver.window_handles:
-        if h != main:
-            driver.switch_to.window(h)
+        link = wait.until(
+            EC.element_to_be_clickable((By.LINK_TEXT, "Click Here"))
+        )
+        link.click()
 
-    assert "New Window" in driver.title
+        wait.until(EC.number_of_windows_to_be(2))
 
-    driver.close()
-    driver.switch_to.window(main)
-    driver.quit()
+        for window in driver.window_handles:
+            if window != main_window:
+                driver.switch_to.window(window)
+                break
+
+        wait.until(lambda d: "New Window" in d.page_source)
+
+        assert "New Window" in driver.page_source
+
+        driver.close()
+        driver.switch_to.window(main_window)
+
+    finally:
+        driver.quit()
 
 
 def test_iframe():
-    driver = webdriver.Chrome()
-    driver.get("https://the-internet.herokuapp.com/iframe")
+    driver = create_driver()
+    wait = WebDriverWait(driver, 10)
 
-    driver.switch_to.frame("mce_0_ifr")
+    try:
+        driver.get("https://the-internet.herokuapp.com/iframe")
 
-    body = driver.find_element(By.ID, "tinymce")
-    body.clear()
-    body.send_keys("Hello from Selenium KT2 test")
+        iframe = wait.until(
+            EC.presence_of_element_located((By.ID, "mce_0_ifr"))
+        )
 
-    driver.switch_to.default_content()
+        driver.switch_to.frame(iframe)
 
-    assert "iframe" in driver.current_url
+        body = wait.until(
+            EC.presence_of_element_located((By.ID, "tinymce"))
+        )
 
-    driver.quit()
+        driver.execute_script(
+            "arguments[0].innerText = 'Selenium iframe test';",
+            body
+        )
+
+        assert "Selenium iframe test" in body.text
+
+        driver.switch_to.default_content()
+
+    finally:
+        driver.quit()
